@@ -1,0 +1,20 @@
+{
+  "about": "The agent kit: everything listed in 'paths' is copied into the next game by `python tools/gdh.py new`. Everything else in this folder belongs to this game only. Improve kit files in place while working (see .claude/skills/godot-agent-dev) and log changes in tools/KIT_CHANGELOG.md.",
+  "lineage": [
+    "Gusanos (gamedev-ia)",
+    "Nuevo Juego (nuevo-juego)"
+  ],
+  "paths": [
+    ".claude/skills/godot-agent-dev",
+    "addons/godot_e2e",
+    "addons/agent_harness",
+    "tools/gdharness",
+    "tools/template",
+    "tools/gdh.py",
+    "tools/new_game.py",
+    "tools/kit.json",
+    "tools/KIT_CHANGELOG.md",
+    "tools/CLAUDE.template.md",
+    "tools/.gdignore"
+  ]
+}
