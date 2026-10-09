@@ -4,3 +4,6 @@
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_game")
+
+[node name="Entities" type="Node2D" parent="."]
+unique_name_in_owner = true

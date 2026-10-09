@@ -12,8 +12,10 @@ Built on godot-e2e (the transport) plus the AgentProbe autoload (addons/agent_ha
     with launch(window=True) as g:            # rendered, for screenshots
         sheet = g.sequence("explosion", count=8, every=6)
 
+    python tools/gdh.py lint                  # static checks (gdharness.lint)
+
 See .claude/skills/godot-agent-dev for the method this was built for.
 """
-from .game import Game, GameTimeout, EngineErrors, launch, node, find_project
+from .game import Game, GameTimeout, EngineErrors, SignalWatch, launch, node, find_project
 
-__all__ = ["Game", "GameTimeout", "EngineErrors", "launch", "node", "find_project"]
+__all__ = ["Game", "GameTimeout", "EngineErrors", "SignalWatch", "launch", "node", "find_project"]

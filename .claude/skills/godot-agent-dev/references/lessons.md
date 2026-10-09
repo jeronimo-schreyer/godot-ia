@@ -30,6 +30,11 @@ what to keep doing anyway.
 - **Nested `project.godot` (templates) clashed** with the game's `class_name`s. -> `.gdignore`
   in folders Godot must not scan (`tools/`).
 
+- **Architecture rules only help if something checks them.** Rules from *Godot 4 Best Practices*
+  that break determinism or isolation are now mechanical: `gdh lint` (global RNG, clock,
+  parent lookups, root spawns), the project-health tests (everything loads, scenes run alone),
+  strict typing as error. The rest is in architecture.md as judgement.
+
 ## Godot gotchas met
 
 - Canvas shaders: `TEXTURE` isn't accessible inside helper functions, and passing it as a
@@ -44,6 +49,13 @@ what to keep doing anyway.
   (harness `set` does it).
 - Pixel-perfect kinematic movement: an all-or-nothing diagonal step against the ground freezes
   objects; resolve per axis or bounce.
+- GDScript warnings set to error (`debug/gdscript/warnings/<name>=2`) are enforced at runtime
+  too, headless included: the script fails to load with "Warning treated as error". That's how
+  the kit enforces static typing without an editor (addons are excluded by default).
+- `ResourceLoader.load()` of a script with a parse error returns a non-null `Script` that can't
+  be instantiated -> check `can_instantiate()` (and `is_abstract()`), not `== null`.
+- Recording any signal generically: a variadic method (`func f(...args: Array)`, 4.5+) connected
+  with `.bind(key)` receives the signal's args with the bound key appended last.
 - `Image.get_pixel` is slow in hot loops; keep a `PackedByteArray` copy (`image.get_data()`,
   refreshed lazily after edits) for lookups.
 

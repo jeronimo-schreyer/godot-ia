@@ -41,6 +41,11 @@ Artifacts go to `<project>/screenshots/harness/` (git-ignored, `.gdignore`d).
 | `call(path, method, *args)` | `node("/root/X")` passes a node; nodes return as `{"_node": path}` |
 | `eval(expr, base="/root")` | GDScript `Expression` with `base` as self: `"state_name() == 'TURN'"`, `"str(active_worm.get_path())"`; `Engine`, `Input`, `Time`, `OS`, `ProjectSettings`, `DisplayServer` available |
 | `exists(path)` | node exists |
+| `tree(path="/root", depth=4)` | scene tree as indented text (`%` = unique name, script file shown) |
+| `watch(path, signal)` | records every emission in-engine -> `SignalWatch`: `.wait(count, timeout)`, `.count`, `.last`, `.args`, `.emissions` (with physics frame), `.clear()`, `.close()` |
+| `check_project()` | loads every .gd/.tscn/.tres/.res outside addons/tools/tests; returns paths that failed (parse errors also fail the test as engine errors) |
+| `scenes()` | the game's .tscn paths |
+| `try_scene(res, frames=10)` | runs a scene alone under `/root/AgentSandbox`, frees it; returns nodes it leaked under `/root`. Errors (e.g. missing parent) fail the test |
 | `frames(n)` / `wait(seconds)` | advance game time (physics frames) |
 | `game_time()` | seconds of game time since start |
 | `wait_until(cond, timeout, base, every, message)` | `cond`: expression string or Python callable; timeout in game seconds; raises `GameTimeout` |
@@ -76,11 +81,21 @@ def game(godot):            # godot: one process per module
 python tools/gdh.py run [--window] [--realtime] [--scene RES] (-c CODE | FILE)   # `g`, `node` in scope
 python tools/gdh.py shot [--scene RES] [--wait S] [--name N]
 python tools/gdh.py test [pytest args]
+python tools/gdh.py lint [PATHS]               # static checks, exit 1 on findings
 python tools/gdh.py new DEST --name "Game"     # next game, inherits this game's kit
 python tools/gdh.py selftest                   # throwaway game from this kit + its tests
 ```
 
 `run` exits 1 and prints them if the engine logged errors.
+
+## Checks every game gets from the template
+
+| Check | Where | Catches |
+|---|---|---|
+| Strict typing | `project.godot`: `debug/gdscript/warnings/untyped_declaration=2` | untyped vars/params/returns -> script fails to load -> every test fails (addons are excluded by Godot) |
+| `gdh lint` | `tests/test_lint.py` (no Godot) | `global-rng`, `wall-clock`, `time-scale`, `parent-lookup`, `root-spawn`, `load-in-loop`. Deliberate case: `# gdh: allow(rule) reason` on that line |
+| Project loads | `tests/e2e/test_project.py` | parse errors, broken `ext_resource`s in any scene/resource, even ones the main scene doesn't use |
+| Scenes run alone | same file (`NEEDS_A_HOST` for exceptions) | `get_parent()`/`"../"` dependencies, spawning into `/root` |
 
 ## Known limits
 

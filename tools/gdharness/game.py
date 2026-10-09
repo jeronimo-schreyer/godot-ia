@@ -114,6 +114,45 @@ class Game:
     def exists(self, path: str) -> bool:
         return self.e2e.node_exists(path)
 
+    def tree(self, path: str = "/root", depth: int = 4) -> str:
+        """The scene tree under [path] as indented text ("Name (Type) script.gd"; % marks
+        scene-unique names). Print it to check structure or what a spawner left behind."""
+        return self.e2e.call(PROBE, "tree", [path, depth])
+
+    # --- Signals ----------------------------------------------------------------------------
+
+    def watch(self, path: str, signal: str) -> "SignalWatch":
+        """Starts recording a signal (args + frame of every emission). Event-driven games
+        expose what happened as signals: wait on them instead of polling state.
+            w = g.watch("/root/Main", "match_started"); ...; w.wait(); assert w.last == [7]"""
+        key = self.e2e.call(PROBE, "watch_signal", [path, signal])
+        if not key:
+            raise ValueError(f"can't watch {path}:{signal} (see engine errors)")
+        return SignalWatch(self, key)
+
+    # --- Project health (book rule: every scene runs on its own) --------------------------
+
+    def check_project(self) -> list:
+        """Loads every script, scene and resource of the game (not addons/tools/tests). Parse
+        errors and broken references become engine errors; returns the paths that failed."""
+        return list(self.e2e.call(PROBE, "load_all", ["res://"]))
+
+    def scenes(self) -> list:
+        """res:// paths of the game's .tscn files."""
+        return list(self.e2e.call(PROBE, "scene_files", ["res://"]))
+
+    def try_scene(self, scene: str, frames: int = 10) -> list:
+        """Runs [scene] alone under /root/AgentSandbox for [frames] physics frames, then frees it.
+        A well-built scene works without a particular parent (no get_parent()/"../" lookups).
+        Engine errors raised meanwhile fail the test as usual; returns the names of nodes the
+        scene left directly under /root (they would survive a restart)."""
+        if not self.e2e.call(PROBE, "isolate_scene", [scene]):
+            raise ValueError(f"can't instance {scene}")
+        self.frames(frames)
+        leaked = list(self.e2e.call(PROBE, "end_isolation", []))
+        self.frames(1)
+        return leaked
+
     # --- Time -------------------------------------------------------------------------------
 
     def frames(self, count: int = 1) -> None:
@@ -227,3 +266,44 @@ class Game:
     def _need_window(self, what: str) -> None:
         if not self.window:
             raise RuntimeError(f"{what} needs a rendered game: launch(window=True) / pytest mark 'window'")
+
+
+class SignalWatch:
+    """Emissions of one signal, recorded in-engine from the moment Game.watch() was called."""
+
+    def __init__(self, game: Game, key: str):
+        self.game = game
+        self.key = key
+
+    @property
+    def emissions(self) -> list:
+        """[{"frame": physics frame, "args": [...]}, ...]"""
+        return self.game.e2e.call(PROBE, "signal_log", [self.key, False])
+
+    @property
+    def count(self) -> int:
+        return len(self.emissions)
+
+    @property
+    def args(self) -> list:
+        """The arguments of every emission, oldest first."""
+        return [e["args"] for e in self.emissions]
+
+    @property
+    def last(self):
+        """Arguments of the latest emission (None if it never fired)."""
+        found = self.emissions
+        return found[-1]["args"] if found else None
+
+    def wait(self, count: int = 1, timeout: float = 10.0, every: int = 1) -> list:
+        """Waits (game time) until the signal fired at least [count] times in total; returns
+        the arguments of every emission so far."""
+        self.game.wait_until(lambda: self.count >= count, timeout=timeout, every=every,
+                             message=f"{self.key} fired {self.count} of {count} times in {timeout}s")
+        return self.args
+
+    def clear(self) -> None:
+        self.game.e2e.call(PROBE, "signal_log", [self.key, True])
+
+    def close(self) -> None:
+        self.game.e2e.call(PROBE, "unwatch_signal", [self.key])

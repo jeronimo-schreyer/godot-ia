@@ -39,7 +39,7 @@ def create(dest: Path, name: str, source: Path = SOURCE) -> Path:
     shutil.copytree(source / "tools" / "template", dest, dirs_exist_ok=True, ignore=IGNORE)
     for f in dest.rglob("*"):
         if f.is_file() and f.suffix in TEXT_SUFFIXES:
-            f.write_text(f.read_text(encoding="utf-8").replace("{{NAME}}", name), encoding="utf-8")
+            f.write_text(f.read_text(encoding="utf-8").replace("{{NAME}}", name), encoding="utf-8", newline="\n")
 
     # 2. The kit, exactly as listed in the manifest.
     for rel in kit["paths"]:
@@ -52,10 +52,11 @@ def create(dest: Path, name: str, source: Path = SOURCE) -> Path:
 
     # 3. Lineage and instructions for the agent that will work on the new game.
     kit["lineage"] = kit["lineage"] + [f"{name} ({dest.name})"]
-    (dest / "tools" / "kit.json").write_text(json.dumps(kit, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (dest / "tools" / "kit.json").write_text(json.dumps(kit, indent=2, ensure_ascii=False) + "\n",
+                                          encoding="utf-8", newline="\n")
     claude_md = (source / "tools" / "CLAUDE.template.md").read_text(encoding="utf-8")
     claude_md = claude_md.replace("{{NAME}}", name).replace("{{LINEAGE}}", " -> ".join(kit["lineage"]))
-    (dest / "CLAUDE.md").write_text(claude_md, encoding="utf-8")
+    (dest / "CLAUDE.md").write_text(claude_md, encoding="utf-8", newline="\n")
 
     godot = shutil.which("godot") or shutil.which("godot4")
     if godot:

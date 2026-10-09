@@ -26,7 +26,17 @@ tool fixes in `tools/gdharness` / `addons/agent_harness`, lessons in the skill's
 
 ## Testing contract (keep it while the game grows)
 
-- `scripts/game.gd`: `start_match(seed)` restarts deterministically; `state_name()`; one seeded
+- `scripts/game.gd`: `start_match(seed)` restarts deterministically (clears `%Entities`, resets
+  any autoload holding match state); `state_name()` plus signals tests can `g.watch`; one seeded
   RNG; `--seed=N` on the command line; `debug_*` helpers to set up situations for tests.
 - Animate from accumulated delta, never from the system clock.
 - If something (an AI, a preview) must predict game behaviour, it calls the same code the game runs.
+- Strict static typing (untyped code fails to load), `python tools/gdh.py lint` clean, every
+  scene runs on its own. These are tests, so `gdh.py test` enforces them.
+
+## Architecture
+
+Follow `references/architecture.md` in the skill (from *Godot 4 Best Practices*): nodes only
+for what draws/collides, data in Resources, logic in RefCounted; call down, signal up; autoloads
+are systems, never match state; never mutate shared Resources; game state outside visual nodes.
+Prototype first; introduce a pattern when the 2nd-3rd copy appears.

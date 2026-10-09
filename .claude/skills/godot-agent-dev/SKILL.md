@@ -1,6 +1,6 @@
 ---
 name: godot-agent-dev
-description: How to build and change a Godot 4 game as an AI agent and actually verify it - run the game, drive it, look at it, test it fast and deterministically with the agent kit (tools/gdharness + addons/agent_harness on top of godot-e2e), and keep improving that kit so the next game inherits it. Use whenever working on a Godot project that has tools/gdh.py, when adding gameplay, weapons, UI, physics or AI opponents, when writing or fixing tests/e2e, when the user reports something "works badly", when tooling gets in the way, or when creating the next game (tools/gdh.py new).
+description: How to build and change a Godot 4 game as an AI agent and actually verify it - run the game, drive it, look at it, test it fast and deterministically with the agent kit (tools/gdharness + addons/agent_harness on top of godot-e2e), structure it so it stays testable (scenes vs Resources vs RefCounted, signals, autoloads, state machines, components - from "Godot 4 Best Practices"), and keep improving that kit so the next game inherits it. Use whenever working on a Godot project that has tools/gdh.py, when adding gameplay, weapons, UI, physics or AI opponents, when deciding how to structure a new system, when writing or fixing tests/e2e, when the user reports something "works badly", when tooling gets in the way, or when creating the next game (tools/gdh.py new).
 ---
 
 # Developing Godot games as an agent
@@ -40,9 +40,12 @@ with launch() as g:                         # headless + --fixed-fps: fastest, d
 with launch(window=True) as g:              # rendered (still fast) for pictures
     g.sequence("explosion", count=8, every=6)   # -> screenshots/harness/explosion.sheet.png
     g.snapshot("start_screen", mask=[(14, 636, 76, 62)])
+    w = g.watch("/root/Main", "match_started")  # record a signal; w.wait(), w.last, w.count
+    print(g.tree("/root/Main", depth=3))         # scene structure as text
 ```
 
-- CLI: `tools/gdh.py run|shot|test|new`. pytest: fixture `godot`, markers `window`,
+- CLI: `tools/gdh.py run|shot|test|lint|new`. `lint` = static checks for global RNG, system
+  clock, `get_parent()`/`"../"`, spawning into the root, `load()` per frame (also a test). pytest: fixture `godot`, markers `window`,
   `allow_engine_errors`, options `--window`, `--realtime`, `--update-snapshots`.
 - Waits are in **game time**. Never `Engine.time_scale` to go faster: it enlarges the physics
   step and changes results (a grenade landed 30 px away). `--fixed-fps` is 3-6x faster and identical.
@@ -50,9 +53,16 @@ with launch(window=True) as g:              # rendered (still fast) for pictures
 
 ## Make the game testable (the contract)
 
-- `start_match(seed)` restarts deterministically; all randomness through one seeded RNG.
-  `--seed=N` on the command line.
-- A readable `state_name()`; signals/counters tests can wait on (`turn_number`, `explosion_count`).
+- `start_match(seed)` restarts deterministically; all randomness through one seeded RNG
+  (never `randf()`, `pick_random()`, `shuffle()`). `--seed=N` on the command line. Restart also
+  clears the level-owned `%Entities` container and resets any autoload holding match state
+  (better: keep no match state in autoloads).
+- A readable `state_name()`; signals tests can `g.watch` (`match_started`, `state_changed`,
+  `died`) and counters (`turn_number`, `explosion_count`).
+- Strict static typing: `untyped_declaration` is an error in project.godot, so an untyped
+  script fails to load and every test fails. Type everything (`:=` counts).
+- Every scene runs on its own (`test_every_scene_runs_alone`): no parent lookups, spawn into a
+  container you own.
 - `debug_*` helpers that build a situation in one call (flat arena, place a unit, set ammo).
   They are the difference between a 3-line test and a flaky 30-line one.
 - Visual animation from accumulated `delta`, never `Time.get_ticks_msec()` (it made snapshots
@@ -60,6 +70,23 @@ with launch(window=True) as g:              # rendered (still fast) for pictures
 - Shared logic in one place: if the AI, a preview or a test needs to predict something, it must
   call the same code the game runs (see AI section).
 - `tools/gdh.py new DEST --name X` creates the next game (already following this) from the current one.
+
+## Architecture ([references/architecture.md](references/architecture.md))
+
+From *Godot 4 Best Practices*, kept because they are what make a growing game testable. Read
+the reference before adding a system (enemies, inventory, UI, saving, AI, modding):
+
+- Node only if it draws, collides or needs transforms. Data -> `Resource`; logic -> `RefCounted`
+  or static funcs (testable without a scene, and the AI reuses it).
+- Call down, signal up: children never reach their parent; siblings talk through the parent;
+  cross-tree events through a signals-only bus (no state, no order-dependent logic, one hop).
+- Autoloads are systems (audio, scene loading, bus), never match/player state.
+- Shared Resources are shared: never mutate one; `duplicate()` per instance if it must change.
+- Components are dumb single-purpose nodes; the entity root wires them. Finite state machine of
+  nodes once flags/`match` explode; strategies as Resources; commands as RefCounted (replays,
+  AI and scripted test players for free).
+- Game state lives in the domain, never in a Label or ProgressBar.
+- Prototype first: patterns when the 2nd-3rd copy appears, not before.
 
 ## Rules learned the hard way ([references/lessons.md](references/lessons.md))
 
